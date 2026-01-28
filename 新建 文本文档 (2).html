@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>牛马倒计时 · 弹幕联机版</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+html,body{
+    margin:0;
+    height:100%;
+    background:#1f1f1f;
+    font-family:"Microsoft YaHei",sans-serif;
+    overflow:hidden;
+}
+.wrap{
+    position:relative;
+    z-index:2;
+    height:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    color:#e6e6e6;
+    pointer-events: none; /* 防止遮挡弹幕点击/输入 */
+}
+h1{letter-spacing:3px;margin-bottom:4px}
+.subtitle{font-size:13px;color:#aaa;margin-bottom:18px}
+.time{font-size:40px;font-weight:bold}
+.desc{margin-top:8px;font-size:15px;color:#999}
+
+/* 拉磨 */
+.mill-area{position:relative;width:320px;height:320px;margin-top:26px}
+.mill{
+    position:absolute;
+    left:50%;top:50%;
+    width:190px;height:190px;
+    margin:-95px;
+    border-radius:50%;
+    border:6px dashed #555;
+}
+.animal{
+    position:absolute;
+    left:50%;top:50%;
+    width:58px;height:58px;
+    margin:-29px;
+    animation:walk 10s linear infinite;
+    filter:grayscale(1);
+}
+@keyframes walk{
+    from{transform:rotate(0deg) translateX(150px)}
+    to{transform:rotate(360deg) translateX(150px)}
+}
+
+/* 弹幕：放大字体、固定行高、不重叠核心样式 */
+.bubble{
+    position:absolute;
+    white-space:nowrap;
+    color:#e6e6e6;
+    font-size:18px;
+    font-weight:500;
+    z-index:5;
+    line-height:40px; /* 加大行高，进一步防止覆盖 */
+    height:40px;
+    transform: translateY(-50%); /* 垂直居中，视觉更舒适 */
+    /* 默认透明度，会被JS动态覆盖 */
+    opacity: 1;
+}
+/* 无限滚动动画：完整滚入滚出，无间断 */
+@keyframes danmuMove{
+    0%{transform: translateX(100vw) translateY(-50%);}
+    100%{transform: translateX(-100%) translateY(-50%);}
+}
+
+/* 输入框：优化样式，提高层级 */
+.input-box{
+    position:fixed;
+    bottom:18px;
+    left:50%;
+    transform:translateX(-50%);
+    z-index:999; /* 最高层级，不被遮挡 */
+    display:flex;
+    gap:8px;
+}
+.input-box input{
+    padding:10px 12px;
+    width:260px; /* 加宽输入框 */
+    font-size:16px;
+    border:1px solid #444;
+    background:#2f2f2f;
+    color:#e6e6e6;
+    border-radius:4px;
+    outline:none;
+}
+.input-box input::placeholder{
+    color:#888;
+}
+.input-box button{
+    padding:10px 20px;
+    cursor:pointer;
+    border:none;
+    background:#666;
+    color:#fff;
+    border-radius:4px;
+    transition:background 0.2s;
+}
+.input-box button:hover{
+    background:#888;
+}
+
+/* 灰尘 */
+canvas#dust{
+    position:absolute;
+    left:0;top:0;
+    width:100%;height:100%;
+    z-index:1;
+    pointer-events: none;
+}
+</style>
+</head>
+
+<body>
+
+<div class="wrap">
+    <h1>🐂 牛马倒计时</h1>
+    <div class="subtitle">努力不一定有结果，但一定很累</div>
+    <div class="time" id="time">00 天 00:00:00</div>
+    <div class="desc" id="desc">今天也在正常运转</div>
+
+    <div class="mill-area">
+        <div class="mill"></div>
+        <svg class="animal" viewBox="0 0 100 100">
+            <g fill="#666">
+                <ellipse cx="50" cy="55" rx="26" ry="18"/>
+                <circle cx="78" cy="50" r="6"/>
+                <rect x="20" y="68" width="6" height="18"/>
+                <rect x="36" y="68" width="6" height="18"/>
+                <rect x="56" y="68" width="6" height="18"/>
+                <rect x="72" y="68" width="6" height="18"/>
+            </g>
+        </svg>
+    </div>
+</div>
+
+<div class="input-box">
+    <input id="danmuInput" placeholder="发一句牛马宣言…" autocomplete="off">
+    <button onclick="sendDanmu()">发射</button>
+</div>
+
+<canvas id="dust"></canvas>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script>
+/******** Firebase 配置（⚠️ 必须换成你自己的） ********/
+const firebaseConfig = {
+  apiKey: "AIzaSyBAo6VlGLletfeDlAjdcfwARnieYdQNOMU",
+  authDomain: "xiaban-bb95e.firebaseapp.com",
+  databaseURL: "https://xiaban-bb95e-default-rtdb.firebaseio.com",
+  projectId: "xiaban-bb95e",
+};
+
+// Firebase初始化错误处理
+try {
+    firebase.initializeApp(firebaseConfig);
+} catch (error) {
+    console.error("Firebase初始化失败：", error);
+    alert("弹幕联机功能失效，请检查配置或网络～");
+}
+const db = firebase.database();
+const danmuRef = db.ref("danmu");
+const ONE_HOUR = 60 * 60 * 1000;
+// 新增：弹幕衰减配置（可调整）
+const DANMU_FADE_CONFIG = {
+    fadeDuration: 5 * 60 * 1000, // 5分钟内逐渐变淡（毫秒）
+    minOpacity: 0.3, // 最小透明度
+    maxOpacity: 1.0  // 最大透明度
+};
+    
+/******** 动态计算每日目标时间（核心修改） ********/
+// 获取当天/次日18:15的时间对象
+function getTargetTime() {
+    const now = new Date();
+    // 创建当天18:15的时间
+    const target = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        18, // 小时
+        15, // 分钟
+        0,  // 秒
+        0   // 毫秒
+    );
+    
+    // 如果当前时间已经过了18:15，则目标时间改为明天的18:15
+    if (now > target) {
+        target.setDate(target.getDate() + 1);
+    }
+    
+    return target;
+}
+
+/******** 倒计时（修改为动态更新目标时间） ********/
+function update(){
+    const now = new Date();
+    const targetDate = getTargetTime(); // 每次更新都重新计算目标时间
+    let diff = targetDate - now;
+
+    if(diff <= 0){
+        document.getElementById('time').innerText = "已完成今日任务";
+        document.getElementById('desc').innerText = "明天继续加油";
+        return;
+    }
+
+    // 计算时分秒（因为是每日目标，天数只可能是0或1）
+    const d = Math.floor(diff/86400000);
+    const h = Math.floor(diff/3600000)%24;
+    const m = Math.floor(diff/60000)%60;
+    const s = Math.floor(diff/1000)%60;
+
+    // 根据天数显示不同文案（0天则只显示时分秒）
+    if (d === 0) {
+        document.getElementById('time').innerText = 
+            String(h).padStart(2,'0') + ":" +
+            String(m).padStart(2,'0') + ":" +
+            String(s).padStart(2,'0');
+    } else {
+        document.getElementById('time').innerText =
+            d + " 天 " +
+            String(h).padStart(2,'0') + ":" +
+            String(m).padStart(2,'0') + ":" +
+            String(s).padStart(2,'0');
+    }
+}
+setInterval(update,1000);update();
+
+/******** 弹幕核心配置：分批延迟+防覆盖+速度（可直接修改） ********/
+const danmuConfig = {
+    lineHeight: 40,    // 与CSS中bubble的line-height一致
+    speed: 18,         // 滚动速度（秒，值越小越快）
+    space: 200,        // 同行动画间隔（像素）
+    maxLines: Math.floor(window.innerHeight / 40), // 自动计算最大行数
+    usedLines: new Map(), // 记录行号+最后一个弹幕的结束位置
+    batchInterval: 800, // 分批延迟间隔（毫秒），每800ms出一个弹幕
+    danmuQueue: [],    // 弹幕等待队列（现在存储完整对象，包含text和time）
+    isProcessingQueue: false // 是否正在处理队列
+};
+
+// 窗口大小变化时重新计算配置
+window.addEventListener('resize', () => {
+    danmuConfig.maxLines = Math.floor(window.innerHeight / danmuConfig.lineHeight);
+    // 超出最大行数则清空冗余记录
+    for (let [line] of danmuConfig.usedLines) {
+        if (line >= danmuConfig.maxLines) danmuConfig.usedLines.delete(line);
+    }
+});
+
+/******** 计算弹幕透明度 ********/
+function calculateDanmuOpacity(createTime) {
+    const now = Date.now();
+    const diff = now - createTime;
+    
+    // 如果弹幕创建时间在衰减时长内，计算衰减后的透明度
+    if (diff < DANMU_FADE_CONFIG.fadeDuration) {
+        // 计算衰减比例：从1到minOpacity线性递减
+        const ratio = 1 - (diff / DANMU_FADE_CONFIG.fadeDuration);
+        return DANMU_FADE_CONFIG.minOpacity + (DANMU_FADE_CONFIG.maxOpacity - DANMU_FADE_CONFIG.minOpacity) * ratio;
+    }
+    // 超过衰减时长，使用最小透明度
+    return DANMU_FADE_CONFIG.minOpacity;
+}
+
+/******** 处理弹幕队列（核心：分批延迟显示） ********/
+function processDanmuQueue() {
+    // 如果队列为空或正在处理，直接返回
+    if (danmuConfig.danmuQueue.length === 0) {
+        danmuConfig.isProcessingQueue = false;
+        return;
+    }
+
+    danmuConfig.isProcessingQueue = true;
+    // 取出队列第一个弹幕显示（现在是完整对象）
+    const danmu = danmuConfig.danmuQueue.shift();
+    spawnDanmu(danmu.text, danmu.time);
+
+    // 延迟指定时间后继续处理下一个
+    setTimeout(processDanmuQueue, danmuConfig.batchInterval);
+}
+
+/******** 弹幕发送：点击+回车键 ********/
+const danmuInput = document.getElementById('danmuInput');
+// 点击发送
+function sendDanmu(){
+    if(!danmuInput.value.trim()) return;
+    const nowTime = Date.now();
+    // 写入Firebase
+    danmuRef.push({
+        text: danmuInput.value,
+        time: nowTime
+    });
+    danmuInput.value="";
+    danmuInput.focus(); // 发送后保持输入框聚焦，方便连续发送
+}
+// 回车键发送
+danmuInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault(); // 阻止输入框换行
+        sendDanmu();
+    }
+});
+
+/******** 接收弹幕：历史+实时（加入队列，分批显示） ********/
+const now = Date.now();
+// 读取1小时内历史弹幕（加入队列）
+danmuRef.once("value", snapshot => {
+    snapshot.forEach(child => {
+        const data = child.val();
+        if (now - data.time <= ONE_HOUR) {
+            // 队列存储完整对象，包含text和time
+            danmuConfig.danmuQueue.push({
+                text: data.text,
+                time: data.time
+            });
+        }
+    });
+    // 开始处理历史弹幕队列
+    processDanmuQueue();
+});
+
+// 监听实时新增弹幕（加入队列）
+danmuRef.on("child_added", snap => {
+    const data = snap.val();
+    if (Date.now() - data.time <= ONE_HOUR) {
+        // 队列存储完整对象，包含text和time
+        danmuConfig.danmuQueue.push({
+            text: data.text,
+            time: data.time
+        });
+        // 如果没有在处理队列，就开始处理
+        if (!danmuConfig.isProcessingQueue) {
+            processDanmuQueue();
+        }
+    }
+});
+
+/******** 弹幕生成：防覆盖核心逻辑 + 颜色衰减 ********/
+function spawnDanmu(text, createTime){
+    const t = document.createElement('div');
+    t.className = 'bubble';
+    t.innerText = text;
+    
+    // 计算并设置弹幕透明度
+    const opacity = calculateDanmuOpacity(createTime);
+    t.style.opacity = opacity;
+    
+    document.body.appendChild(t);
+
+    // 1. 获取弹幕实际宽度（必须渲染后才能获取）
+    const danmuWidth = t.offsetWidth;
+    // 屏幕宽度
+    const screenWidth = window.innerWidth;
+
+    // 2. 核心：分配空闲行（同行动画间隔足够才分配）
+    let targetLine = -1;
+    for (let i = 0; i < danmuConfig.maxLines; i++) {
+        // 获取该行最后一个弹幕的结束位置，默认0
+        const lastEndX = danmuConfig.usedLines.get(i) || 0;
+        // 当前时间的屏幕右侧位置 - 间隔 > 上一个弹幕结束位置 → 该行空闲
+        if (screenWidth - danmuConfig.space > lastEndX) {
+            targetLine = i;
+            break;
+        }
+    }
+    // 若无完全空闲行，找“最空闲”的行（最后一个弹幕结束位置最小）
+    if (targetLine === -1) {
+        let minEndX = Infinity;
+        for (let [line, endX] of danmuConfig.usedLines) {
+            if (endX < minEndX) {
+                minEndX = endX;
+                targetLine = line;
+            }
+        }
+        // 兜底：随机分配（防止极端情况）
+        if (targetLine === -1) targetLine = Math.floor(Math.random() * danmuConfig.maxLines);
+    }
+
+    // 3. 计算当前弹幕的结束位置（屏幕宽度 + 弹幕宽度）
+    const currentEndX = screenWidth + danmuWidth;
+    // 更新该行的最后结束位置
+    danmuConfig.usedLines.set(targetLine, currentEndX);
+
+    // 4. 设置弹幕位置
+    const top = (targetLine + 0.5) * danmuConfig.lineHeight; // 垂直居中
+    t.style.top = `${top}px`;
+
+    // 5. 设置无限滚动动画
+    const animateTime = `${danmuConfig.speed}s`;
+    t.style.animation = `danmuMove ${animateTime} linear infinite`;
+
+    // 6. 动画循环回调：更新该行最后结束位置（核心，保持同行动画间隔）
+    t.addEventListener('animationiteration', () => {
+        danmuConfig.usedLines.set(targetLine, screenWidth + danmuWidth);
+    });
+
+    // 7. 兜底：元素移除时清理（防止内存泄漏）
+    t.addEventListener('remove', () => {
+        // 若该行只有当前弹幕，删除记录
+        if (danmuConfig.usedLines.get(targetLine) === currentEndX) {
+            danmuConfig.usedLines.delete(targetLine);
+        }
+    });
+}
+
+/******** 灰尘动效：适配窗口 ********/
+const c = document.getElementById('dust');
+const ctx = c.getContext('2d');
+c.width = innerWidth;
+c.height = innerHeight;
+let dusts = [];
+for(let i=0;i<120;i++){
+    dusts.push({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*2+0.5,v:Math.random()*0.3});
+}
+function animate(){
+    ctx.clearRect(0,0,c.width,c.height);
+    ctx.fillStyle='rgba(180,180,180,0.25)';
+    dusts.forEach(p=>{
+        p.x+=p.v;if(p.x>c.width)p.x=0;
+        ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
+    });
+    requestAnimationFrame(animate);
+}
+animate();
+// 灰尘画布适配窗口
+window.addEventListener('resize', () => {
+    c.width = window.innerWidth;
+    c.height = window.innerHeight;
+});
+</script>
+
+</body>
+</html>
