@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>下班倒计时 · 弹幕联机版</title>
+<title>牛马倒计时 · 弹幕联机版</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
@@ -34,18 +34,21 @@ h1{letter-spacing:3px;margin-bottom:4px;font-size:24px;}
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 15px;
+    gap: 10px; /* 减小默认间距 */
     margin: 10px 0 20px;
     max-width: 800px;
+    width: 100%; /* 占满可用宽度 */
 }
 /* 单个公司倒计时卡片 - 桌面端样式 */
 .time-card {
     background: rgba(40, 40, 40, 0.8);
     border-radius: 8px;
     padding: 15px 20px;
-    min-width: 180px;
+    min-width: 160px; /* 稍微减小桌面端最小宽度 */
     text-align: center;
     border: 1px solid #444;
+    flex: 1; /* 让卡片均分宽度 */
+    max-width: 200px; /* 限制桌面端最大宽度 */
 }
 .company-name {
     font-size: 16px;
@@ -69,79 +72,81 @@ h1{letter-spacing:3px;margin-bottom:4px;font-size:24px;}
 @media screen and (max-width: 768px) {
     /* 调整标题大小 */
     h1 {
-        font-size: 20px;
+        font-size: 18px;
     }
     
-    /* 倒计时容器间距减小 */
+    /* 倒计时容器适配 - 关键修改 */
     .times-container {
-        gap: 10px;
+        gap: 8px; /* 更小的间距 */
         margin: 5px 0 15px;
+        max-width: 95%; /* 几乎占满屏幕宽度 */
     }
     
-    /* 倒计时卡片适配 */
+    /* 倒计时卡片适配 - 核心修改 */
     .time-card {
-        padding: 10px 15px;
-        min-width: 120px; /* 减小最小宽度 */
-        max-width: 140px; /* 限制最大宽度 */
+        padding: 8px 10px; /* 大幅减小内边距 */
+        min-width: unset; /* 移除最小宽度限制 */
+        max-width: 45%; /* 每行最多显示2个卡片 */
+        flex: 0 0 45%; /* 固定宽度比例，确保两行 */
     }
     
-    /* 公司名称字体减小 */
+    /* 公司名称字体进一步减小 */
     .company-name {
-        font-size: 14px;
-        margin-bottom: 5px;
-    }
-    
-    /* 倒计时数字字体减小 */
-    .time {
-        font-size: 22px;
-    }
-    
-    /* 描述文字字体减小 */
-    .desc {
         font-size: 12px;
-        height: 18px;
-        margin-top: 5px;
+        margin-bottom: 4px;
+    }
+    
+    /* 倒计时数字字体大幅减小 */
+    .time {
+        font-size: 18px;
+    }
+    
+    /* 描述文字字体进一步减小 */
+    .desc {
+        font-size: 10px;
+        height: 16px;
+        margin-top: 4px;
     }
     
     /* 拉磨区域缩小 */
     .mill-area{
-        width: 240px;
-        height: 240px;
+        width: 200px;
+        height: 200px;
         margin-top: 10px;
     }
     .mill{
-        width: 140px;
-        height: 140px;
-        margin:-70px;
-        border-width: 4px;
+        width: 120px;
+        height: 120px;
+        margin:-60px;
+        border-width: 3px;
     }
     .animal{
-        width: 48px;
-        height: 48px;
-        margin:-24px;
+        width: 40px;
+        height: 40px;
+        margin:-20px;
         animation:walk 8s linear infinite;
     }
     @keyframes walk{
-        from{transform:rotate(0deg) translateX(110px)}
-        to{transform:rotate(360deg) translateX(110px)}
+        from{transform:rotate(0deg) translateX(90px)}
+        to{transform:rotate(360deg) translateX(90px)}
     }
     
     /* 输入框适配 */
     .input-box input{
-        width: 200px;
-        padding: 8px 10px;
-        font-size: 14px;
+        width: 180px;
+        padding: 6px 8px;
+        font-size: 12px;
     }
     .input-box button{
-        padding: 8px 15px;
-        font-size: 14px;
+        padding: 6px 12px;
+        font-size: 12px;
     }
     
     /* 弹幕字体减小 */
     .bubble{
-        font-size: 16px;
-        line-height: 36px;
-        height: 36px;
+        font-size: 14px;
+        line-height: 32px;
+        height: 32px;
     }
 }
 
@@ -410,7 +415,7 @@ const danmuConfig = {
 // 窗口大小变化时重新计算配置
 window.addEventListener('resize', () => {
     // 适配移动端弹幕行高变化
-    const lineHeight = window.innerWidth <= 768 ? 36 : 40;
+    const lineHeight = window.innerWidth <= 768 ? 32 : 40;
     danmuConfig.lineHeight = lineHeight;
     danmuConfig.maxLines = Math.floor(window.innerHeight / lineHeight);
     
@@ -526,7 +531,7 @@ function spawnDanmu(text, createTime){
     const screenWidth = window.innerWidth;
 
     // 适配移动端行高
-    const lineHeight = window.innerWidth <= 768 ? 36 : 40;
+    const lineHeight = window.innerWidth <= 768 ? 32 : 40;
 
     // 2. 核心：分配空闲行（同行动画间隔足够才分配）
     let targetLine = -1;
