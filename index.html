@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>牛马倒计时 · 弹幕联机版</title>
+<title>下班倒计时 · 弹幕联机版</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
@@ -26,8 +26,8 @@ html,body{
     padding: 20px;
     box-sizing: border-box;
 }
-h1{letter-spacing:3px;margin-bottom:4px}
-.subtitle{font-size:13px;color:#aaa;margin-bottom:18px}
+h1{letter-spacing:3px;margin-bottom:4px;font-size:24px;}
+.subtitle{font-size:13px;color:#aaa;margin-bottom:18px;}
 
 /* 多公司倒计时容器 */
 .times-container {
@@ -38,7 +38,7 @@ h1{letter-spacing:3px;margin-bottom:4px}
     margin: 10px 0 20px;
     max-width: 800px;
 }
-/* 单个公司倒计时卡片 */
+/* 单个公司倒计时卡片 - 桌面端样式 */
 .time-card {
     background: rgba(40, 40, 40, 0.8);
     border-radius: 8px;
@@ -63,6 +63,86 @@ h1{letter-spacing:3px;margin-bottom:4px}
     font-size: 14px;
     color: #999;
     height: 20px;
+}
+
+/* ========== 移动端适配样式 ========== */
+@media screen and (max-width: 768px) {
+    /* 调整标题大小 */
+    h1 {
+        font-size: 20px;
+    }
+    
+    /* 倒计时容器间距减小 */
+    .times-container {
+        gap: 10px;
+        margin: 5px 0 15px;
+    }
+    
+    /* 倒计时卡片适配 */
+    .time-card {
+        padding: 10px 15px;
+        min-width: 120px; /* 减小最小宽度 */
+        max-width: 140px; /* 限制最大宽度 */
+    }
+    
+    /* 公司名称字体减小 */
+    .company-name {
+        font-size: 14px;
+        margin-bottom: 5px;
+    }
+    
+    /* 倒计时数字字体减小 */
+    .time {
+        font-size: 22px;
+    }
+    
+    /* 描述文字字体减小 */
+    .desc {
+        font-size: 12px;
+        height: 18px;
+        margin-top: 5px;
+    }
+    
+    /* 拉磨区域缩小 */
+    .mill-area{
+        width: 240px;
+        height: 240px;
+        margin-top: 10px;
+    }
+    .mill{
+        width: 140px;
+        height: 140px;
+        margin:-70px;
+        border-width: 4px;
+    }
+    .animal{
+        width: 48px;
+        height: 48px;
+        margin:-24px;
+        animation:walk 8s linear infinite;
+    }
+    @keyframes walk{
+        from{transform:rotate(0deg) translateX(110px)}
+        to{transform:rotate(360deg) translateX(110px)}
+    }
+    
+    /* 输入框适配 */
+    .input-box input{
+        width: 200px;
+        padding: 8px 10px;
+        font-size: 14px;
+    }
+    .input-box button{
+        padding: 8px 15px;
+        font-size: 14px;
+    }
+    
+    /* 弹幕字体减小 */
+    .bubble{
+        font-size: 16px;
+        line-height: 36px;
+        height: 36px;
+    }
 }
 
 /* 拉磨 */
@@ -223,7 +303,7 @@ const companies = [
     { name: "JSCC", hour: 19, minute: 0 },
     { name: "大博", hour: 16, minute: 50 },
     { name: "韶音", hour: 18, minute: 15 },
-    { name: "中国移动", hour: 18, minute: 0 }
+    { name: "中国移动", hour: 18, minute: 0 },
     { name: "复旦中山", hour: 17, minute: 30 }
 ];
 
@@ -329,7 +409,11 @@ const danmuConfig = {
 
 // 窗口大小变化时重新计算配置
 window.addEventListener('resize', () => {
-    danmuConfig.maxLines = Math.floor(window.innerHeight / danmuConfig.lineHeight);
+    // 适配移动端弹幕行高变化
+    const lineHeight = window.innerWidth <= 768 ? 36 : 40;
+    danmuConfig.lineHeight = lineHeight;
+    danmuConfig.maxLines = Math.floor(window.innerHeight / lineHeight);
+    
     // 超出最大行数则清空冗余记录
     for (let [line] of danmuConfig.usedLines) {
         if (line >= danmuConfig.maxLines) danmuConfig.usedLines.delete(line);
@@ -441,9 +525,15 @@ function spawnDanmu(text, createTime){
     // 屏幕宽度
     const screenWidth = window.innerWidth;
 
+    // 适配移动端行高
+    const lineHeight = window.innerWidth <= 768 ? 36 : 40;
+
     // 2. 核心：分配空闲行（同行动画间隔足够才分配）
     let targetLine = -1;
-    for (let i = 0; i < danmuConfig.maxLines; i++) {
+    // 重新计算最大行数
+    const maxLines = Math.floor(window.innerHeight / lineHeight);
+    
+    for (let i = 0; i < maxLines; i++) {
         // 获取该行最后一个弹幕的结束位置，默认0
         const lastEndX = danmuConfig.usedLines.get(i) || 0;
         // 当前时间的屏幕右侧位置 - 间隔 > 上一个弹幕结束位置 → 该行空闲
@@ -462,7 +552,7 @@ function spawnDanmu(text, createTime){
             }
         }
         // 兜底：随机分配（防止极端情况）
-        if (targetLine === -1) targetLine = Math.floor(Math.random() * danmuConfig.maxLines);
+        if (targetLine === -1) targetLine = Math.floor(Math.random() * maxLines);
     }
 
     // 3. 计算当前弹幕的结束位置（屏幕宽度 + 弹幕宽度）
@@ -471,7 +561,7 @@ function spawnDanmu(text, createTime){
     danmuConfig.usedLines.set(targetLine, currentEndX);
 
     // 4. 设置弹幕位置
-    const top = (targetLine + 0.5) * danmuConfig.lineHeight; // 垂直居中
+    const top = (targetLine + 0.5) * lineHeight; // 垂直居中
     t.style.top = `${top}px`;
 
     // 5. 设置无限滚动动画
@@ -520,6 +610,3 @@ window.addEventListener('resize', () => {
 
 </body>
 </html>
-
-
-
