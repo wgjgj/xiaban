@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>下班倒计时 · 弹幕联机版</title>
+<title>牛马倒计时 · 弹幕联机版</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
@@ -23,14 +23,50 @@ html,body{
     justify-content:center;
     color:#e6e6e6;
     pointer-events: none; /* 防止遮挡弹幕点击/输入 */
+    padding: 20px;
+    box-sizing: border-box;
 }
 h1{letter-spacing:3px;margin-bottom:4px}
 .subtitle{font-size:13px;color:#aaa;margin-bottom:18px}
-.time{font-size:40px;font-weight:bold}
-.desc{margin-top:8px;font-size:15px;color:#999}
+
+/* 多公司倒计时容器 */
+.times-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 15px;
+    margin: 10px 0 20px;
+    max-width: 800px;
+}
+/* 单个公司倒计时卡片 */
+.time-card {
+    background: rgba(40, 40, 40, 0.8);
+    border-radius: 8px;
+    padding: 15px 20px;
+    min-width: 180px;
+    text-align: center;
+    border: 1px solid #444;
+}
+.company-name {
+    font-size: 16px;
+    color: #ccc;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+.time {
+    font-size: 32px;
+    font-weight: bold;
+    line-height: 1.2;
+}
+.desc {
+    margin-top: 8px;
+    font-size: 14px;
+    color: #999;
+    height: 20px;
+}
 
 /* 拉磨 */
-.mill-area{position:relative;width:320px;height:320px;margin-top:26px}
+.mill-area{position:relative;width:320px;height:320px;margin-top:16px}
 .mill{
     position:absolute;
     left:50%;top:50%;
@@ -122,10 +158,13 @@ canvas#dust{
 <body>
 
 <div class="wrap">
-    <h1>🐂 下班倒计时</h1>
+    <h1>🐂 牛马倒计时</h1>
     <div class="subtitle">努力不一定有结果，但一定很累</div>
-    <div class="time" id="time">00 天 00:00:00</div>
-    <div class="desc" id="desc">今天也在正常运转</div>
+    
+    <!-- 多公司倒计时容器 -->
+    <div class="times-container" id="timesContainer">
+        <!-- 由JS动态生成各公司倒计时卡片 -->
+    </div>
 
     <div class="mill-area">
         <div class="mill"></div>
@@ -156,10 +195,10 @@ canvas#dust{
 <script>
 /******** Firebase 配置（⚠️ 必须换成你自己的） ********/
 const firebaseConfig = {
-  apiKey: "AIzaSyBAo6VlGLletfeDlAjdcfwARnieYdQNOMU",
-  authDomain: "xiaban-bb95e.firebaseapp.com",
-  databaseURL: "https://xiaban-bb95e-default-rtdb.firebaseio.com",
-  projectId: "xiaban-bb95e",
+  apiKey: "AIzaSyBdI1mZKLPuJ6YQk2zkSGRErxJszcLFdl4",
+  authDomain: "cow-horse-danmu1.firebaseapp.com",
+  databaseURL: "https://cow-horse-danmu1-default-rtdb.firebaseio.com",
+  projectId: "cow-horse-danmu1",
 };
 
 // Firebase初始化错误处理
@@ -179,22 +218,30 @@ const DANMU_FADE_CONFIG = {
     maxOpacity: 1.0  // 最大透明度
 };
     
-/******** 动态计算每日目标时间（核心修改） ********/
-// 获取当天/次日18:15的时间对象
-function getTargetTime() {
+/******** 公司下班时间配置（核心新增） ********/
+const companies = [
+    { name: "JSCC", hour: 19, minute: 0 },
+    { name: "大博", hour: 16, minute: 50 },
+    { name: "韶音", hour: 18, minute: 15 },
+    { name: "中国移动", hour: 17, minute: 0 }
+];
+
+/******** 动态计算目标时间 ********/
+// 根据小时和分钟计算目标时间（当天/次日）
+function getTargetTime(hour, minute) {
     const now = new Date();
-    // 创建当天18:15的时间
+    // 创建当天目标时间
     const target = new Date(
         now.getFullYear(),
         now.getMonth(),
         now.getDate(),
-        18, // 小时
-        15, // 分钟
-        0,  // 秒
-        0   // 毫秒
+        hour,
+        minute,
+        0,
+        0
     );
     
-    // 如果当前时间已经过了18:15，则目标时间改为明天的18:15
+    // 如果当前时间已过目标时间，改为次日
     if (now > target) {
         target.setDate(target.getDate() + 1);
     }
@@ -202,39 +249,70 @@ function getTargetTime() {
     return target;
 }
 
-/******** 倒计时（修改为动态更新目标时间） ********/
-function update(){
-    const now = new Date();
-    const targetDate = getTargetTime(); // 每次更新都重新计算目标时间
-    let diff = targetDate - now;
-
-    if(diff <= 0){
-        document.getElementById('time').innerText = "已完成今日任务";
-        document.getElementById('desc').innerText = "明天继续加油";
-        return;
-    }
-
-    // 计算时分秒（因为是每日目标，天数只可能是0或1）
-    const d = Math.floor(diff/86400000);
-    const h = Math.floor(diff/3600000)%24;
-    const m = Math.floor(diff/60000)%60;
-    const s = Math.floor(diff/1000)%60;
-
-    // 根据天数显示不同文案（0天则只显示时分秒）
-    if (d === 0) {
-        document.getElementById('time').innerText = 
-            String(h).padStart(2,'0') + ":" +
-            String(m).padStart(2,'0') + ":" +
-            String(s).padStart(2,'0');
-    } else {
-        document.getElementById('time').innerText =
-            d + " 天 " +
-            String(h).padStart(2,'0') + ":" +
-            String(m).padStart(2,'0') + ":" +
-            String(s).padStart(2,'0');
-    }
+/******** 初始化倒计时卡片 ********/
+function initTimeCards() {
+    const container = document.getElementById('timesContainer');
+    container.innerHTML = ''; // 清空容器
+    
+    // 为每个公司创建倒计时卡片
+    companies.forEach((company, index) => {
+        const card = document.createElement('div');
+        card.className = 'time-card';
+        card.innerHTML = `
+            <div class="company-name">${company.name}</div>
+            <div class="time" id="time-${index}">00:00:00</div>
+            <div class="desc" id="desc-${index}">今天也在正常运转</div>
+        `;
+        container.appendChild(card);
+    });
 }
-setInterval(update,1000);update();
+
+/******** 批量更新所有公司倒计时 ********/
+function updateAllTimes() {
+    const now = new Date();
+    
+    companies.forEach((company, index) => {
+        const targetDate = getTargetTime(company.hour, company.minute);
+        let diff = targetDate - now;
+        
+        const timeElement = document.getElementById(`time-${index}`);
+        const descElement = document.getElementById(`desc-${index}`);
+        
+        if (diff <= 0) {
+            timeElement.innerText = "已下班";
+            descElement.innerText = "明天继续加油";
+            return;
+        }
+        
+        // 计算时分秒
+        const d = Math.floor(diff / 86400000);
+        const h = Math.floor(diff / 3600000) % 24;
+        const m = Math.floor(diff / 60000) % 60;
+        const s = Math.floor(diff / 1000) % 60;
+        
+        // 显示格式（0天则只显示时分秒）
+        if (d === 0) {
+            timeElement.innerText = 
+                String(h).padStart(2, '0') + ":" +
+                String(m).padStart(2, '0') + ":" +
+                String(s).padStart(2, '0');
+        } else {
+            timeElement.innerText =
+                d + " 天 " +
+                String(h).padStart(2, '0') + ":" +
+                String(m).padStart(2, '0') + ":" +
+                String(s).padStart(2, '0');
+        }
+        
+        // 更新描述文本
+        descElement.innerText = `距离下班还有 ${d > 0 ? d + '天' : ''} ${h}小时${m}分钟`;
+    });
+}
+
+// 初始化卡片并启动倒计时
+initTimeCards();
+setInterval(updateAllTimes, 1000);
+updateAllTimes();
 
 /******** 弹幕核心配置：分批延迟+防覆盖+速度（可直接修改） ********/
 const danmuConfig = {
@@ -441,4 +519,3 @@ window.addEventListener('resize', () => {
 
 </body>
 </html>
-
