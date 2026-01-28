@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>牛马倒计时 · 弹幕联机版</title>
+<title>上号倒计时 · 弹幕联机版</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
@@ -243,7 +243,7 @@ canvas#dust{
 <body>
 
 <div class="wrap">
-    <h1>🐂 牛马倒计时</h1>
+    <h1>🐂 上号倒计时</h1>
     <div class="subtitle">努力不一定有结果，但一定很累</div>
     
     <!-- 多公司倒计时容器 -->
@@ -313,12 +313,12 @@ const companies = [
     { name: "家里蹲", hour: 8, minute: 30 }
 ];
 
-/******** 动态计算目标时间 ********/
-// 根据小时和分钟计算目标时间（当天/次日）
+/******** 动态计算目标时间（修改：移除顺延次日逻辑） ********/
+// 只返回当天的目标时间，不再顺延到次日
 function getTargetTime(hour, minute) {
     const now = new Date();
-    // 创建当天目标时间
-    const target = new Date(
+    // 直接创建当天的目标时间
+    return new Date(
         now.getFullYear(),
         now.getMonth(),
         now.getDate(),
@@ -327,13 +327,6 @@ function getTargetTime(hour, minute) {
         0,
         0
     );
-    
-    // 如果当前时间已过目标时间，改为次日
-    if (now > target) {
-        target.setDate(target.getDate() + 1);
-    }
-    
-    return target;
 }
 
 /******** 初始化倒计时卡片 ********/
@@ -354,7 +347,7 @@ function initTimeCards() {
     });
 }
 
-/******** 批量更新所有公司倒计时 ********/
+/******** 批量更新所有公司倒计时（核心修改） ********/
 function updateAllTimes() {
     const now = new Date();
     
@@ -365,9 +358,10 @@ function updateAllTimes() {
         const timeElement = document.getElementById(`time-${index}`);
         const descElement = document.getElementById(`desc-${index}`);
         
+        // 判断：只要当前时间超过当天下班时间，就显示已下班
         if (diff <= 0) {
-            timeElement.innerText = "已下班";
-            descElement.innerText = "明天继续加油";
+            timeElement.innerText = "已下班！";
+            descElement.innerText = "上号！";
             return;
         }
         
@@ -616,7 +610,3 @@ window.addEventListener('resize', () => {
 
 </body>
 </html>
-
-
-
-
